@@ -1,0 +1,73 @@
+---
+- hosts: all
+  gather_facts: yes
+  become: yes
+
+  pre_tasks:
+    - name: Update apt cache
+      apt: update_cache=yes
+
+    - name: Disable swap
+      command: swapoff -a
+      when: ansible_swaptotal_mb > 0
+
+  tasks:
+    - name: Install apt-transport-https
+      apt:
+        name: apt-transport-https
+
+    - name: Add Kubernetes key
+      ansible.builtin.apt_key:
+        url: https://packages.cloud.google.com/apt/doc/apt-key.gpg
+        state: present
+
+    - name: Add Kubernetes repository into sources list
+      ansible.builtin.apt_repository:
+        repo: deb https://apt.kubernetes.io/ kubernetes-xenial main
+        state: present
+
+    - name: Install kubectl
+      apt:
+        name: kubectl
+        update_cache: yes
+
+    - name: Add Terraform key
+      ansible.builtin.apt_key:
+        url: https://apt.releases.hashicorp.com/gpg
+        state: present
+
+    - name: Add Terraform repository into sources list
+      ansible.builtin.apt_repository:
+        repo: "deb [arch=amd64] https://apt.releases.hashicorp.com {{ ansible_distribution_release }} main"
+        state: present
+
+    - name: Install Terraform
+      apt:
+        name: terraform
+        update_cache: yes
+
+    - name: Download K3d
+      get_url:
+        url: https://raw.githubusercontent.com/rancher/k3d/main/install.sh
+        dest: /tmp/install.sh
+        mode: '0755'
+
+    - name: Install K3d
+      ansible.builtin.shell: /tmp/install.sh
+      become: false
+
+    - name: Download Helm install script
+      uri:
+        url: https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3
+        return_content: yes
+      register: helm_script
+
+    - name: Create Helm script
+      ansible.builtin.copy:
+        content: "{{ helm_script.content }}"
+        dest: /tmp/helm.sh
+        mode: '0755'
+
+    - name: Install Helm
+      ansible.builtin.shell: /tmp/helm.sh
+      become: false
